@@ -1,6 +1,7 @@
 import datetime
 import argparse
 
+threeToOne={'Ala':'A','Arg':'R','Asn':'N','Asp':'D','Asx':'B','Cys':'C','Glu':'E','Gln':'Q','Glx':'Z','Gly':'G','His':'H','Ile':'I','Leu':'L','Lys':'K','Met':'M','Phe':'F','Pro':'P','Ser':'S','Thr':'T','Trp':'W','Tyr':'Y','Val':'V'}
 message=''
 
 #Implement command line parser
@@ -38,7 +39,7 @@ class VCF:
 
 def main(INFOField):
 
-	'''The funtion takes the INFO field of a SNP (as a string). If the SNP is non-synonymous, the coordinate of 
+	'''The function takes the INFO field of a SNP (as a string). If the SNP is non-synonymous, the coordinate of 
 	the amino acid change is extracted. The transcript ID the SNP associates with will be matched with Pfam data 
 	(generated from a single tsv file). If the amino acid change falls within the coordinate of a pfam domain, 
 	two tags are added to the INFO field, SNPEFF_PFAMID contains the pfam ID of all domains that the SNP can affect, 
@@ -82,6 +83,37 @@ def main(INFOField):
 
 	return ';'.join(newINFOList)
 
+def mainAlt(ANNField):
+
+	pfamIDTag='.'
+	coorTag='.'
+
+	ANNList=ANNField.split('|')
+	if ANNList[6] not in vcf_tscptID:
+		vcf_tscptID.append(ANNList[6])
+	if ANNList[1]=='NON_SYNONYMOUS_CODING':
+		logStats['NonsynSNPrcd']+=1
+		if ANNList[6] not in nonsynSNP_tscptID:
+			nonsynSNP_tscptID.append(ANNList[6])
+		pepCoor=int(ANNList[10][5:len(ANNList[10])-3]) #Assuming three-letter amino acid code is used
+		refPep=threeToOne[ANNList[10][2:5]]
+		if fasta_pepDict[ANNList[6]][pepCoor-1]!=refPep:
+			message=message+'Anomaly detected at entry #'+vcfData.dataFields.index(entry)+' of the vcf file!\n'
+		for entry in pfamData:
+			if entry[0]==ANNList[6] and int(entry[6])<=pepCoor<=int(entry[7]):
+				if pfamIDTag == '.':
+					pfamIDTag=entry[4]
+					coorTag=entry[6]+'-'+entry[7]
+					logStats['matchedNonsynSNPrcd']+=1
+				else:
+					pfamIDTag= pfamIDTag+','+entry[4]
+					coorTag= coorTag+','+entry[6]+'-'+entry[7]
+
+	ANNList.insert(14,pfamIDTag)
+	ANNList.insert(15,coorTag)
+
+	return '|'.join(ANNList)
+
 logStats={'NonsynSNPrcd':0,'matchedNonsynSNPrcd':0}
 
 #Readind records from proteome fasta file
@@ -113,16 +145,36 @@ vcfFile.close()
 #Performing main task on every entry
 vcf_tscptID=[]
 nonsynSNP_tscptID=[]
-for entry in vcfData.dataFields:
-	updatedINFO=main(entry[7])
-	entry[7]=updatedINFO
+if args.annformat:
+	for entry in vcfData.dataFields:
+		infoList=entry[7].split(';')
+		for item in infoList:
+			if item[:3]=='ANN':
+				ANNFields=item[4:].split(',')
+				for ANNField in ANNFields:
+					updatedANNField=mainAlt(ANNField)
+					ANNFields[ANNFields.index[ANNField]]=updatedANNField
+				infoList[infoList.index(item)] = 'ANN='+','.join(ANNFields)
+		entry[7]=';'.join(infoList)
+
+else:
+	for entry in vcfData.dataFields:
+		updatedINFO=main(entry[7])
+		entry[7]=updatedINFO
 
 #Adding meta information lines
-for line in vcfData.metaInfo:
-	if line[:6]!='##INFO' and vcfData.metaInfo[vcfData.metaInfo.index(line)-1][:6]=='##INFO':
-		vcfData.metaInfo.insert(vcfData.metaInfo.index(line),'##INFO=<ID=SNPEFF_PFAMID,Number=.,Type=String,Description="Pfam ID of protein domain affected">')
-		vcfData.metaInfo.insert(vcfData.metaInfo.index(line),'##INFO=<ID=SNPEFF_DOMAINCOOR,Number=.,Type=String,Description="Coordinates of protein domain affected">')
-		break
+
+if args.annformat:
+	for line in vcfData.metaInfo:
+		if line[:14]=='##INFO=<ID=ANN':
+			vcfData.metaInfo[vcfData.metaInfo.index(line)]='##INFO=<ID=ANN,Number=.,Type=String,Description=\"Predicted effects for this variant.Format: \'Allele|Annotation|Putative_impact|Gene_Name|Gene_ID|Feature_type|Feature_ID|Transcript_biotype|Rank/total|HGVS.c|HGVS.p|cDNA_position/cDNA_len|CDS_position/CDS_len|Protein_position/Protein_len|Pfam_ID|Protein_domain_coordinate[|Distance_to_feature|Errors_Warnings_InfoMessages]\'\">'
+			break
+else:
+	for line in vcfData.metaInfo:
+		if line[:6]!='##INFO' and vcfData.metaInfo[vcfData.metaInfo.index(line)-1][:6]=='##INFO':
+			vcfData.metaInfo.insert(vcfData.metaInfo.index(line),'##INFO=<ID=SNPEFF_PFAMID,Number=.,Type=String,Description="Pfam ID of protein domain affected">')
+			vcfData.metaInfo.insert(vcfData.metaInfo.index(line),'##INFO=<ID=SNPEFF_DOMAINCOOR,Number=.,Type=String,Description="Coordinates of protein domain affected">')
+			break
 
 #Creating new vcf file
 newVCF=open(args.targetDir+'updated.vcf','w')
