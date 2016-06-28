@@ -37,7 +37,7 @@ class VCF:
 			newFile.write('\t'.join(SNPinfo)+'\n')
 
 
-def main(INFOField):
+def main(SNPentry):
 
 	'''The function takes the INFO field of a SNP (as a string). If the SNP is non-synonymous, the coordinate of 
 	the amino acid change is extracted. The transcript ID the SNP associates with will be matched with Pfam data 
@@ -48,6 +48,7 @@ def main(INFOField):
 	In addition, a list of all unique transcript ID records in the vcf file is compiled.
 	'''
 
+	INFOField=SNPentry[7]
 	INFOList=INFOField.split(';')
 	INFODict={}
 	for item in INFOList:
@@ -62,7 +63,8 @@ def main(INFOField):
 		pepCoor=int(INFODict['SNPEFF_AMINO_ACID_CHANGE'][1:len(INFODict['SNPEFF_AMINO_ACID_CHANGE'])-1])
 		refPep=INFODict['SNPEFF_AMINO_ACID_CHANGE'][0]
 		if fasta_pepDict[INFODict['SNPEFF_TRANSCRIPT_ID']][pepCoor-1]!=refPep:
-			message=message+'Anomaly detected at entry #'+vcfData.dataFields.index(entry)+' of the vcf file!\n'
+			global message
+			message=message+'Anomaly detected at entry #'+str(vcfData.dataFields.index(SNPentry)+1)+' of the vcf file!\n'
 		for entry in pfamData:
 			if entry[0]==INFODict['SNPEFF_TRANSCRIPT_ID'] and int(entry[6])<=pepCoor<=int(entry[7]):
 				if 'SNPEFF_PFAMID' not in INFODict:
@@ -83,22 +85,25 @@ def main(INFOField):
 
 	return ';'.join(newINFOList)
 
-def mainAlt(ANNField):
+def mainAlt(ANNField,SNPentry):
+
+	''' The alternative version of the main function for ANN tagged vcf files. 
+	'''
 
 	pfamIDTag='.'
 	coorTag='.'
-
 	ANNList=ANNField.split('|')
 	if ANNList[6] not in vcf_tscptID:
 		vcf_tscptID.append(ANNList[6])
-	if ANNList[1]=='NON_SYNONYMOUS_CODING':
+	if 'missense_variant' in ANNList[1]:
 		logStats['NonsynSNPrcd']+=1
 		if ANNList[6] not in nonsynSNP_tscptID:
 			nonsynSNP_tscptID.append(ANNList[6])
-		pepCoor=int(ANNList[10][5:len(ANNList[10])-3]) #Assuming three-letter amino acid code is used
+		pepCoor=int(ANNList[10][5:len(ANNList[10])-3])
 		refPep=threeToOne[ANNList[10][2:5]]
-		if fasta_pepDict[ANNList[6]][pepCoor-1]!=refPep:
-			message=message+'Anomaly detected at entry #'+vcfData.dataFields.index(entry)+' of the vcf file!\n'
+		if ANNList[6] in fasta_pepDict and fasta_pepDict[ANNList[6]][pepCoor-1]!=refPep:
+			global message
+			message=message+'Anomaly detected at entry #'+str(vcfData.dataFields.index(SNPentry)+1)+' of the vcf file!\n'
 		for entry in pfamData:
 			if entry[0]==ANNList[6] and int(entry[6])<=pepCoor<=int(entry[7]):
 				if pfamIDTag == '.':
@@ -152,14 +157,14 @@ if args.annformat:
 			if item[:3]=='ANN':
 				ANNFields=item[4:].split(',')
 				for ANNField in ANNFields:
-					updatedANNField=mainAlt(ANNField)
-					ANNFields[ANNFields.index[ANNField]]=updatedANNField
+					updatedANNField=mainAlt(ANNField,entry)
+					ANNFields[ANNFields.index(ANNField)]=updatedANNField
 				infoList[infoList.index(item)] = 'ANN='+','.join(ANNFields)
 		entry[7]=';'.join(infoList)
 
 else:
 	for entry in vcfData.dataFields:
-		updatedINFO=main(entry[7])
+		updatedINFO=main(entry)
 		entry[7]=updatedINFO
 
 #Adding meta information lines
