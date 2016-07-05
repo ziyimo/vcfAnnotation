@@ -29,7 +29,7 @@ def main(codonChange):
 				checklist[j]+=bases[j]
 
 	#Developer option
-	print (checklist)
+	#print (checklist)
 
 	degeneracy=0
 	for codon in checklist:
@@ -40,6 +40,6 @@ def main(codonChange):
 
 # developer tests
 
-while True:
-	a=input('Codon Change (e.g. tcA/tcG): ')
-	print(main(a))
+#while True:
+#	a=input('Codon Change (e.g. tcA/tcG): ')
+#	print(main(a))

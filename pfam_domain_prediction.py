@@ -1,5 +1,6 @@
 import datetime
 import argparse
+import synonymous_SNP_degeneracy as sSd
 
 threeToOne={'Ala':'A','Arg':'R','Asn':'N','Asp':'D','Asx':'B','Cys':'C','Glu':'E','Gln':'Q','Glx':'Z','Gly':'G','His':'H','Ile':'I','Leu':'L','Lys':'K','Met':'M','Phe':'F','Pro':'P','Ser':'S','Thr':'T','Trp':'W','Tyr':'Y','Val':'V'}
 message=''
@@ -11,6 +12,7 @@ parser.add_argument('pfamDir',type=str,help='Specify the pfam tsv file directory
 parser.add_argument('vcfDir',type=str,help='Specify the vcf file directory')
 parser.add_argument('-t','--targetDir',type=str,default='',help='Specify the target directory for the updated vcf file and the log file')
 parser.add_argument('-a','--annformat',action='store_true',help='run the program on ann formatted SNPs')
+parser.add_argument('-s','--synSNPdegeneracy',action='store_true',help='annotate the synonymous SNPs with degeneracy')
 args=parser.parse_args()
 if args.targetDir != '':
 	args.targetDir+='/'
@@ -74,6 +76,12 @@ def main(SNPentry):
 				else:
 					INFODict['SNPEFF_PFAMID']= INFODict['SNPEFF_PFAMID']+','+entry[4]
 					INFODict['SNPEFF_DOMAINCOOR']= INFODict['SNPEFF_DOMAINCOOR']+','+entry[6]+'-'+entry[7]
+	elif args.synSNPdegeneracy and INFODict['SNPEFF_EFFECT']=='SYNONYMOUS_CODING':
+		logStats['synSNPrcd']+=1
+		INFODict['SNPEFF_DEGENERACY']=str(sSd.main(INFODict['SNPEFF_CODON_CHANGE']))
+
+	if args.synSNPdegeneracy and 'SNPEFF_DEGENERACY' not in INFODict:
+		INFODict['SNPEFF_DEGENERACY']='.'
 	if 'SNPEFF_PFAMID' not in INFODict:
 		INFODict['SNPEFF_PFAMID']='.'
 		INFODict['SNPEFF_DOMAINCOOR']='.'
@@ -120,6 +128,8 @@ def mainAlt(ANNField,SNPentry):
 	return '|'.join(ANNList)
 
 logStats={'NonsynSNPrcd':0,'matchedNonsynSNPrcd':0}
+if args.synSNPdegeneracy:
+	logStats['synSNPrcd']=0
 
 #Readind records from proteome fasta file
 fasta_pep=open(args.fastaDir,'r')
@@ -179,6 +189,8 @@ else:
 		if line[:6]!='##INFO' and vcfData.metaInfo[vcfData.metaInfo.index(line)-1][:6]=='##INFO':
 			vcfData.metaInfo.insert(vcfData.metaInfo.index(line),'##INFO=<ID=SNPEFF_PFAMID,Number=.,Type=String,Description="Pfam ID of protein domain affected">')
 			vcfData.metaInfo.insert(vcfData.metaInfo.index(line),'##INFO=<ID=SNPEFF_DOMAINCOOR,Number=.,Type=String,Description="Coordinates of protein domain affected">')
+			if args.synSNPdegeneracy:
+				vcfData.metaInfo.insert(vcfData.metaInfo.index(line),'##INFO=<ID=SNPEFF_DEGENERACY,Number=1,Type=Integer,Description="Degeneracy of synonymous SNP">')
 			break
 
 #Creating new vcf file
