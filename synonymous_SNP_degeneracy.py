@@ -1,3 +1,8 @@
+import argparse
+import datetime
+import vcf_parser as vcfp
+
+threeToOne={'Ala':'A','Arg':'R','Asn':'N','Asp':'D','Asx':'B','Cys':'C','Glu':'E','Gln':'Q','Glx':'Z','Gly':'G','His':'H','Ile':'I','Leu':'L','Lys':'K','Met':'M','Phe':'F','Pro':'P','Ser':'S','Thr':'T','Trp':'W','Tyr':'Y','Val':'V'}
 gencode = {'ATA':'I', 'ATC':'I', 'ATT':'I', 'ATG':'M', 'ACA':'T', 'ACC':'T', 'ACG':'T', 'ACT':'T',\
 'AAC':'N', 'AAT':'N', 'AAA':'K', 'AAG':'K', 'AGC':'S', 'AGT':'S', 'AGA':'R', 'AGG':'R',\
 'CTA':'L', 'CTC':'L', 'CTG':'L', 'CTT':'L', 'CCA':'P', 'CCC':'P', 'CCG':'P', 'CCT':'P',\
@@ -6,6 +11,16 @@ gencode = {'ATA':'I', 'ATC':'I', 'ATT':'I', 'ATG':'M', 'ACA':'T', 'ACC':'T', 'AC
 'GAC':'D', 'GAT':'D', 'GAA':'E', 'GAG':'E', 'GGA':'G', 'GGC':'G', 'GGG':'G', 'GGT':'G',\
 'TCA':'S', 'TCC':'S', 'TCG':'S', 'TCT':'S', 'TTC':'F', 'TTT':'F', 'TTA':'L', 'TTG':'L',\
 'TAC':'Y', 'TAT':'Y', 'TAA':'_', 'TAG':'_', 'TGC':'C', 'TGT':'C', 'TGA':'_', 'TGG':'W'}
+
+message=''
+
+parser=argparse.ArgumentParser(description='The program populates the INFO field of each synonymous SNP with a tag indicating its degeneracy')
+parser.add_argument('vcfDir',type=str,help='Specify the vcf file directory')
+parser.add_argument('-a','--annFormat',type=str,help='Run the program on ann tagged SNPs, directory of a fasta file containing CDS sequence should be specified after this flag')
+parser.add_argument('-t','--targetDir',type=str,default='',help='Specify the target directory for the updated vcf file and the log file')
+args=parser.parse_args()
+if args.targetDir != '':
+	args.targetDir+='/'
 
 def main(codonChange):
 
@@ -28,9 +43,6 @@ def main(codonChange):
 			else:
 				checklist[j]+=bases[j]
 
-	#Developer option
-	print (checklist)
-
 	degeneracy=0
 	for codon in checklist:
 		if gencode[codon]==refSeq:
@@ -38,8 +50,67 @@ def main(codonChange):
 
 	return degeneracy
 
-# developer tests
+if args.annFormat != None:
+	CDSfasta=open(args.annFormat,'r')
+	CDSseqDict={}
+	for line in CDSfasta:
+		if line[:1]=='>':
+			CDS_ID=line[1:].strip()
+			CDSseqDict[CDS_ID]=''
+		else:
+			CDSseqDict[CDS_ID]+=line.strip()
 
-while True:
-	a=input('Codon Change (e.g. tcA/tcG): ')
-	print(main(a))
+vcfFile=open(args.vcfDir, 'r')
+vcfData=vcfp.VCF(vcfFile)
+vcfFile.close()
+
+logStats={'SynSNPrcd':0,'Anomaly':0}
+
+for entry in vcfData.dataFields:
+	degeneracy='.'
+	if args.annFormat != None:
+		annFields=vcfp.grab(entry[7],'ANN')
+		if annFields.count('synonymous_variant')>1:
+			logStats['SynSNPrcd']+=1
+			message=message+'Multiple synonymous variant detected at entry #'+str(vcfData.dataFields.index(entry)+1)+'\n'
+			logStats['Anomaly']+=1
+		else:
+			annFieldsls=annFields.split(',')
+			for annField in annFieldsls:
+				annList=annField.split('|')
+				if 'synonymous_variant' in annList[1]:
+					logStats['SynSNPrcd']+=1
+					CDS=annList[12].split('/')
+					refCodon=CDSseqDict[annList[6]][CDS[0]-(CDS[0]-1)%3-1:CDS[0]-(CDS[0]-1)%3+2] #Assuming CDS identifier is the same as Transcript ID
+					codonChange=''
+					for i in range(3):
+						if i == (CDS[0]-1)%3:
+							codonChange+=refCodon[i].upper()
+						else:
+							codonChange+=refCodon[i].lower()
+					degeneracy=str(main(codonChange))
+
+	else:
+		if vcfp.grab(entry[7],'SNPEFF_EFFECT')=='SYNONYMOUS_CODING':
+			logStats['SynSNPrcd']+=1
+			degeneracy=str(main(vcfp.grab(entry[7],'SNPEFF_CODON_CHANGE')))
+	
+	entry[7]=entry[7]+';DEGENERACY='+degeneracy
+
+vcfData.addMetaInfo('##INFO=<ID=DEGENERACY,Number=1,Type=Integer,Description="Degeneracy of synonymous SNP">')
+
+newVCF=open(args.targetDir+'updated.vcf','w')
+vcfData.writeVCFFile(newVCF)
+newVCF.close()
+
+logStats['SNPrcd']=len(vcfData.dataFields)
+
+logtxt=str(datetime.datetime.today())+'\n'
+for stat in list(logStats.items()):
+	logtxt=logtxt+stat[0]+'='+str(stat[1])+'\n'
+logtxt=logtxt+'\n\n'+message
+print (logtxt)
+
+logfile=open(args.targetDir+'log.txt','w')
+logfile.write(logtxt)
+logfile.close()

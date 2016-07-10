@@ -51,6 +51,7 @@ def main(SNPentry):
 	INFOField=SNPentry[7]
 	INFOList=INFOField.split(';')
 	INFODict={}
+	DSRPT_DOMAIN_ls=[]
 	for item in INFOList:
 		a=item.split('=')
 		INFODict[a[0]]=a[1]
@@ -67,31 +68,20 @@ def main(SNPentry):
 			message=message+'Anomaly detected at entry #'+str(vcfData.dataFields.index(SNPentry)+1)+' of the vcf file!\n'
 		for entry in pfamData:
 			if entry[0]==INFODict['SNPEFF_TRANSCRIPT_ID'] and int(entry[6])<=pepCoor<=int(entry[7]):
-				if 'SNPEFF_PFAMID' not in INFODict:
-					INFODict['SNPEFF_PFAMID']=entry[4]
-					INFODict['SNPEFF_DOMAINCOOR']=entry[6]+'-'+entry[7]
-					logStats['matchedNonsynSNPrcd']+=1
-				else:
-					INFODict['SNPEFF_PFAMID']= INFODict['SNPEFF_PFAMID']+','+entry[4]
-					INFODict['SNPEFF_DOMAINCOOR']= INFODict['SNPEFF_DOMAINCOOR']+','+entry[6]+'-'+entry[7]
-	if 'SNPEFF_PFAMID' not in INFODict:
-		INFODict['SNPEFF_PFAMID']='.'
-		INFODict['SNPEFF_DOMAINCOOR']='.'
-	
-	newINFOList=[]
-	for item in list(INFODict.items()):
-		newINFOList.append(item[0]+'='+item[1])
-	newINFOList.sort()
+				DSRPT_DOMAIN_ls.append(INFODict['SNPEFF_TRANSCRIPT_ID']+'|'+entry[4]+'|'+entry[6]+'-'+entry[7])
+	if DSRPT_DOMAIN_ls==[]:
+		newINFOField=INFOField+';'+'DSRPT_DOMAIN=.'
+	else:
+		newINFOField=INFOField+';'+'DSRPT_DOMAIN='+','.join(DSRPT_DOMAIN_ls)
+		logStats['matchedNonsynSNPrcd']+=1
 
-	return ';'.join(newINFOList)
+	return newINFOField
 
 def mainAlt(ANNField,SNPentry):
 
 	''' The alternative version of the main function for ANN tagged vcf files. 
 	'''
-
-	pfamIDTag='.'
-	coorTag='.'
+	DD_ls=[]
 	ANNList=ANNField.split('|')
 	if ANNList[6] not in vcf_tscptID:
 		vcf_tscptID.append(ANNList[6])
@@ -106,22 +96,13 @@ def mainAlt(ANNField,SNPentry):
 			message=message+'Anomaly detected at entry #'+str(vcfData.dataFields.index(SNPentry)+1)+' of the vcf file!\n'
 		for entry in pfamData:
 			if entry[0]==ANNList[6] and int(entry[6])<=pepCoor<=int(entry[7]):
-				if pfamIDTag == '.':
-					pfamIDTag=entry[4]
-					coorTag=entry[6]+'-'+entry[7]
-					logStats['matchedNonsynSNPrcd']+=1
-				else:
-					pfamIDTag= pfamIDTag+','+entry[4]
-					coorTag= coorTag+','+entry[6]+'-'+entry[7]
+				DD_ls.append(ANNList[6]+'|'+entry[4]+'|'+entry[6]+'-'+entry[7])
 
-	ANNList.insert(14,pfamIDTag)
-	ANNList.insert(15,coorTag)
-
-	return '|'.join(ANNList)
+	return DD_ls
 
 logStats={'NonsynSNPrcd':0,'matchedNonsynSNPrcd':0}
 
-#Readind records from proteome fasta file
+#Reading records from proteome fasta file
 fasta_pep=open(args.fastaDir,'r')
 fasta_pepDict={}
 for line in fasta_pep:
@@ -153,14 +134,17 @@ nonsynSNP_tscptID=[]
 if args.annformat:
 	for entry in vcfData.dataFields:
 		infoList=entry[7].split(';')
+		DSRPT_DOMAIN_ls=[]
 		for item in infoList:
 			if item[:3]=='ANN':
 				ANNFields=item[4:].split(',')
 				for ANNField in ANNFields:
-					updatedANNField=mainAlt(ANNField,entry)
-					ANNFields[ANNFields.index(ANNField)]=updatedANNField
-				infoList[infoList.index(item)] = 'ANN='+','.join(ANNFields)
-		entry[7]=';'.join(infoList)
+					DSRPT_DOMAIN_ls+=mainAlt(ANNField,entry)
+		if DSRPT_DOMAIN_ls==[]:
+			entry[7]=entry[7]+';'+'DSRPT_DOMAIN=.'
+		else:
+			entry[7]=entry[7]+':'+'DSRPT_DOMAIN='+','.join(DSRPT_DOMAIN_ls)
+			logStats['matchedNonsynSNPrcd']+=1
 
 else:
 	for entry in vcfData.dataFields:
@@ -169,17 +153,10 @@ else:
 
 #Adding meta information lines
 
-if args.annformat:
-	for line in vcfData.metaInfo:
-		if line[:14]=='##INFO=<ID=ANN':
-			vcfData.metaInfo[vcfData.metaInfo.index(line)]='##INFO=<ID=ANN,Number=.,Type=String,Description=\"Predicted effects for this variant.Format: \'Allele|Annotation|Putative_impact|Gene_Name|Gene_ID|Feature_type|Feature_ID|Transcript_biotype|Rank/total|HGVS.c|HGVS.p|cDNA_position/cDNA_len|CDS_position/CDS_len|Protein_position/Protein_len|Pfam_ID|Protein_domain_coordinate[|Distance_to_feature|Errors_Warnings_InfoMessages]\'\">'
-			break
-else:
-	for line in vcfData.metaInfo:
-		if line[:6]!='##INFO' and vcfData.metaInfo[vcfData.metaInfo.index(line)-1][:6]=='##INFO':
-			vcfData.metaInfo.insert(vcfData.metaInfo.index(line),'##INFO=<ID=SNPEFF_PFAMID,Number=.,Type=String,Description="Pfam ID of protein domain affected">')
-			vcfData.metaInfo.insert(vcfData.metaInfo.index(line),'##INFO=<ID=SNPEFF_DOMAINCOOR,Number=.,Type=String,Description="Coordinates of protein domain affected">')
-			break
+for line in vcfData.metaInfo:
+	if line[:6]!='##INFO' and vcfData.metaInfo[vcfData.metaInfo.index(line)-1][:6]=='##INFO':
+		vcfData.metaInfo.insert(vcfData.metaInfo.index(line),'##INFO=<ID=DSRPT_DOMAIN,Number=.,Type=String,Description=\"Predicted protein domain disruption.Format:\'Transcript_ID|Domain_ID|NTerm-CTerm\'\">')
+		break
 
 #Creating new vcf file
 newVCF=open(args.targetDir+'updated.vcf','w')
