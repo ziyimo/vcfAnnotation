@@ -1,5 +1,6 @@
 import datetime
 import argparse
+import vcf_parser as vcfp
 
 threeToOne={'Ala':'A','Arg':'R','Asn':'N','Asp':'D','Asx':'B','Cys':'C','Glu':'E','Gln':'Q','Glx':'Z','Gly':'G','His':'H','Ile':'I','Leu':'L','Lys':'K','Met':'M','Phe':'F','Pro':'P','Ser':'S','Thr':'T','Trp':'W','Tyr':'Y','Val':'V'}
 message=''
@@ -14,28 +15,6 @@ parser.add_argument('-a','--annformat',action='store_true',help='run the program
 args=parser.parse_args()
 if args.targetDir != '':
 	args.targetDir+='/'
-
-class VCF:
-	# parsing the vcf file when instantiating a VCF object
-	def __init__(self,vcfFile):
-		self.metaInfo=[]
-		self.headerLine=[]
-		self.dataFields=[]
-		for line in vcfFile:
-			if line[:2]=='##':
-				self.metaInfo.append(line.strip())
-			elif line[:1]=='#':
-				self.headerLine=line.strip().split('\t')
-			else:
-				self.dataFields.append(line.strip().split('\t'))
-
-	# write the information in a VCF object in a text file
-	def writeVCFFile(self,newFile):
-		newFile.write('\n'.join(self.metaInfo)+'\n')
-		newFile.write('\t'.join(self.headerLine)+'\n')
-		for SNPinfo in self.dataFields:
-			newFile.write('\t'.join(SNPinfo)+'\n')
-
 
 def main(SNPentry):
 
@@ -125,7 +104,7 @@ pfamTSV.close()
 
 #Putting the SNP data into an object -- vcfData
 vcfFile=open(args.vcfDir, 'r')
-vcfData=VCF(vcfFile)
+vcfData=vcfp.VCF(vcfFile)
 vcfFile.close()
 
 #Performing main task on every entry
@@ -152,11 +131,7 @@ else:
 		entry[7]=updatedINFO
 
 #Adding meta information lines
-
-for line in vcfData.metaInfo:
-	if line[:6]!='##INFO' and vcfData.metaInfo[vcfData.metaInfo.index(line)-1][:6]=='##INFO':
-		vcfData.metaInfo.insert(vcfData.metaInfo.index(line),'##INFO=<ID=DSRPT_DOMAIN,Number=.,Type=String,Description=\"Predicted protein domain disruption.Format:\'Transcript_ID|Domain_ID|NTerm-CTerm\'\">')
-		break
+vcfData.addMetaInfo('##INFO=<ID=DSRPT_DOMAIN,Number=.,Type=String,Description=\"Predicted protein domain disruption.Format:\'Transcript_ID|Domain_ID|NTerm-CTerm\'\">')
 
 #Creating new vcf file
 newVCF=open(args.targetDir+'updated.vcf','w')

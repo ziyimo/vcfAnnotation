@@ -81,10 +81,11 @@ for entry in vcfData.dataFields:
 				if 'synonymous_variant' in annList[1]:
 					logStats['SynSNPrcd']+=1
 					CDS=annList[12].split('/')
-					refCodon=CDSseqDict[annList[6]][CDS[0]-(CDS[0]-1)%3-1:CDS[0]-(CDS[0]-1)%3+2] #Assuming CDS identifier is the same as Transcript ID
+					CDSpos=int(CDS[0])
+					refCodon=CDSseqDict[annList[6]][CDSpos-(CDSpos-1)%3-1:CDSpos-(CDSpos-1)%3+2] #Assuming CDS identifier is the same as Transcript ID
 					codonChange=''
 					for i in range(3):
-						if i == (CDS[0]-1)%3:
+						if i == (CDSpos-1)%3:
 							codonChange+=refCodon[i].upper()
 						else:
 							codonChange+=refCodon[i].lower()

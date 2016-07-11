@@ -13,9 +13,9 @@ class VCF:
 				self.dataFields.append(line.strip().split('\t'))
 
 	def addMetaInfo(self,metaInfoLine):
-		for line in self.metaInfo:
-			if line[:6]!='##INFO' and self.metaInfo[self.metaInfo.index(line)-1][:6]=='##INFO':
-				self.metaInfo.insert(self.metaInfo.index(line),metaInfoLine)
+		for i in range(1,len(self.metaInfo)):
+			if self.metaInfo[i][:6]!='##INFO' and self.metaInfo[i-1][:6]=='##INFO':
+				self.metaInfo.insert(i,metaInfoLine)
 				break
 
 	# write the information in a VCF object in a text file
