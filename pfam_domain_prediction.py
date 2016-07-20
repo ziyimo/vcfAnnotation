@@ -30,7 +30,7 @@ def main(SNPentry):
 	INFOField=SNPentry[7]
 	INFOList=INFOField.split(';')
 	INFODict={}
-	DSRPT_DOMAIN_ls=[]
+	PROTEIN_DOMAIN_ls=[]
 	for item in INFOList:
 		a=item.split('=')
 		INFODict[a[0]]=a[1]
@@ -47,11 +47,11 @@ def main(SNPentry):
 			message=message+'Anomaly detected at entry #'+str(vcfData.dataFields.index(SNPentry)+1)+' of the vcf file!\n'
 		for entry in pfamData:
 			if entry[0]==INFODict['SNPEFF_TRANSCRIPT_ID'] and int(entry[6])<=pepCoor<=int(entry[7]):
-				DSRPT_DOMAIN_ls.append(INFODict['SNPEFF_TRANSCRIPT_ID']+'|'+entry[4]+'|'+entry[6]+'-'+entry[7])
-	if DSRPT_DOMAIN_ls==[]:
-		newINFOField=INFOField+';'+'DSRPT_DOMAIN=.'
+				PROTEIN_DOMAIN_ls.append(INFODict['SNPEFF_TRANSCRIPT_ID']+'|'+INFODict['SNPEFF_AMINO_ACID_CHANGE']+'|'+entry[4]+'|'+entry[6]+'-'+entry[7])
+	if PROTEIN_DOMAIN_ls==[]:
+		newINFOField=INFOField+';'+'PROTEIN_DOMAIN=.'
 	else:
-		newINFOField=INFOField+';'+'DSRPT_DOMAIN='+','.join(DSRPT_DOMAIN_ls)
+		newINFOField=INFOField+';'+'PROTEIN_DOMAIN='+','.join(PROTEIN_DOMAIN_ls)
 		logStats['matchedNonsynSNPrcd']+=1
 
 	return newINFOField
@@ -75,7 +75,8 @@ def mainAlt(ANNField,SNPentry):
 			message=message+'Anomaly detected at entry #'+str(vcfData.dataFields.index(SNPentry)+1)+' of the vcf file!\n'
 		for entry in pfamData:
 			if entry[0]==ANNList[6] and int(entry[6])<=pepCoor<=int(entry[7]):
-				DD_ls.append(ANNList[6]+'|'+entry[4]+'|'+entry[6]+'-'+entry[7])
+				AA_Change=refPep+str(pepCoor)+threeToOne[ANNList[10][len(ANNList[10])-3:]]
+				DD_ls.append(ANNList[6]+'|'+AA_Change+'|'+entry[4]+'|'+entry[6]+'-'+entry[7])
 
 	return DD_ls
 
@@ -113,16 +114,16 @@ nonsynSNP_tscptID=[]
 if args.annformat:
 	for entry in vcfData.dataFields:
 		infoList=entry[7].split(';')
-		DSRPT_DOMAIN_ls=[]
+		PROTEIN_DOMAIN_ls=[]
 		for item in infoList:
 			if item[:3]=='ANN':
 				ANNFields=item[4:].split(',')
 				for ANNField in ANNFields:
-					DSRPT_DOMAIN_ls+=mainAlt(ANNField,entry)
-		if DSRPT_DOMAIN_ls==[]:
-			entry[7]=entry[7]+';'+'DSRPT_DOMAIN=.'
+					PROTEIN_DOMAIN_ls+=mainAlt(ANNField,entry)
+		if PROTEIN_DOMAIN_ls==[]:
+			entry[7]=entry[7]+';'+'PROTEIN_DOMAIN=.'
 		else:
-			entry[7]=entry[7]+':'+'DSRPT_DOMAIN='+','.join(DSRPT_DOMAIN_ls)
+			entry[7]=entry[7]+';'+'PROTEIN_DOMAIN='+','.join(PROTEIN_DOMAIN_ls)
 			logStats['matchedNonsynSNPrcd']+=1
 
 else:
@@ -131,7 +132,7 @@ else:
 		entry[7]=updatedINFO
 
 #Adding meta information lines
-vcfData.addMetaInfo('##INFO=<ID=DSRPT_DOMAIN,Number=.,Type=String,Description=\"Predicted protein domain disruption.Format:\'Transcript_ID|Domain_ID|NTerm-CTerm\'\">')
+vcfData.addMetaInfo('##INFO=<ID=PROTEIN_DOMAIN,Number=.,Type=String,Description=\"Predicted protein domain disruption.Format:\'Transcript_ID|Amino_Acid_Change|Domain_ID|NTerm-CTerm\'\">')
 
 #Creating new vcf file
 newVCF=open(args.targetDir+'updated.vcf','w')

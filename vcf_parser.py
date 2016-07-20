@@ -18,6 +18,12 @@ class VCF:
 				self.metaInfo.insert(i,metaInfoLine)
 				break
 
+	def updateMetaInfo(self,INFO_TAG,metaInfoLine):
+		for line in self.metaInfo:
+			if line[:6]=='##INFO' and line[11:11+len(INFO_TAG)]==INFO_TAG:
+				self.metaInfo[self.metaInfo.index(line)]=metaInfoLine
+				break
+
 	# write the information in a VCF object in a text file
 	def writeVCFFile(self,newFile):
 		newFile.write('\n'.join(self.metaInfo)+'\n')
