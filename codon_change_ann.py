@@ -32,8 +32,9 @@ for entry in vcfData.dataFields:
 	for item in infoList:
 		if item[:3]=='ANN':
 			ANNFields=item[4:].split(',')
+			annotated=False
 			for ANNField in ANNFields:
-				annList=annField.split('|')	
+				annList=ANNField.split('|')	
 				if annList[12]!='':
 					CDS=annList[12].split('/')
 					CDSpos=int(CDS[0])
@@ -51,12 +52,13 @@ for entry in vcfData.dataFields:
 						else:
 							codonChange+=refCodon[i].lower()
 					annList.insert(15,codonChange)
-					logStats['Codon_Change_Annotated']+=1
+					annotated=True
 				else:
 					annList.insert(15,'')
-
 				updatedANNField='|'.join(annList)
 				ANNFields[ANNFields.index(ANNField)]=updatedANNField
+			if annotated:
+				logStats['Codon_Change_Annotated']+=1
 			infoList[infoList.index(item)] = 'ANN='+','.join(ANNFields)
 	entry[7]=';'.join(infoList)
 
