@@ -1,6 +1,28 @@
 import argparse
 import datetime
 import vcf_parser as vcfp
+import sys
+
+# Print iterations progress (status bar)
+def printProgress (iteration, total, prefix = '', suffix = '', decimals = 2, barLength = 50):
+    """
+    Call in a loop to create terminal progress bar
+    @params:
+        iteration   - Required  : current iteration (Int)
+        total       - Required  : total iterations (Int)
+        prefix      - Optional  : prefix string (Str)
+        suffix      - Optional  : suffix string (Str)
+        decimals    - Optional  : number of decimals in percent complete (Int)
+        barLength   - Optional  : character length of bar (Int)
+    """
+    filledLength    = int(round(barLength * iteration / float(total)))
+    percents        = round(100.00 * (iteration / float(total)), decimals)
+    bar             = '█' * filledLength + '-' * (barLength - filledLength)
+    sys.stdout.write('\r%s |%s| %s%s %s' % (prefix, bar, percents, '%', suffix)),
+    sys.stdout.flush()
+    if iteration == total:
+        sys.stdout.write('\n')
+        sys.stdout.flush()
 
 Allele=['A','G','C','T']
 Annotation=['coding_sequence_variant', 'chromosome', 'coding_sequence_variant', 'inframe_insertion', 'disruptive_inframe_insertion', 'inframe_deletion', 'disruptive_inframe_deletion', 'downstream_gene_variant', 'exon_variant', 'exon_loss_variant', 'frameshift_variant', 'gene_variant', 'intergenic_region', 'conserved_intergenic_variant', 'intragenic_variant', 'intron_variant', 'conserved_intron_variant', 'miRNA', 'missense_variant', 'initiator_codon_variant', 'stop_retained_variant', 'rare_amino_acid_variant', 'splice_acceptor_variant', 'splice_donor_variant', 'splice_region_variant', 'splice_region_variant', 'splice_region_variant', 'stop_lost', '5_prime_UTR_premature_start_codon_gain_variant', 'start_lost', 'stop_gained', 'synonymous_variant', 'start_retained', 'stop_retained_variant', 'transcript_variant', 'regulatory_region_variant', 'upstream_gene_variant', '3_prime_UTR_variant', '3_prime_UTR_truncation+exon_loss', '5_prime_UTR_variant', '5_prime_UTR_truncation+exon_loss_variant', 'sequence_feature+exon_loss_variant']
@@ -122,10 +144,12 @@ vcfData=vcfp.VCF(vcfFile)
 vcfFile.close()
 
 entryParsed=0
+totalEntry=len(vcfData.dataFields)
 for entry in vcfData.dataFields:
 	ann=vcfp.grab(entry[7],'ANN')
 	validate(ann,vcfData.dataFields.index(entry))
 	entryParsed+=1
+	printProgress(entryParsed, totalEntry, prefix = 'Progress:', suffix = 'Complete')
 	if anomalyTally==20:
 		break
 
